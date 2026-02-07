@@ -1,6 +1,8 @@
 /**
  * Simple colored logger for terminal output
  */
+import fs from 'node:fs';
+import path from 'node:path';
 
 enum LogLevel {
   DEBUG = 0,
@@ -8,6 +10,12 @@ enum LogLevel {
   WARN = 2,
   ERROR = 3,
 }
+
+// Log context (common fields for all logs)
+type LogContext = {
+  sessionId?: string;
+  agentId?: string;
+};
 
 // ANSI color codes
 const colors = {
@@ -27,18 +35,42 @@ const colors = {
   gray: '\x1b[90m',
 };
 
+export const DEFAULT_LOG_DIR = '/tmp/ymbot';
+export const DEFAULT_LOG_FILE = path.join(DEFAULT_LOG_DIR, 'ymbot.log'); // legacy single-file path
+
 class Logger {
   private minLevel: LogLevel;
   private name: string;
+  private logFile?: string;
+  private logDir: string;
 
-  constructor(name: string = 'YMBot', minLevel: LogLevel = LogLevel.DEBUG) {
+  constructor(
+    name: string = 'YMBot',
+    minLevel: LogLevel = LogLevel.DEBUG,
+    logDir: string = DEFAULT_LOG_DIR
+  ) {
     this.name = name;
     this.minLevel = minLevel;
+    this.logDir = logDir;
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    this.logFile = path.join(
+      this.logDir,
+      `ymbot-${this.formatLocalDate(new Date())}.json`
+    );
   }
 
   /**
    * Format timestamp
    */
+  private formatLocalDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   private getTimestamp(): string {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
@@ -75,10 +107,36 @@ class Logger {
   }
 
   /**
+   * Write log entry to file in JSON Lines format
+   */
+  private writeToFile(
+    level: string,
+    message: string,
+    context?: LogContext,
+    meta?: unknown
+  ): void {
+    if (!this.logFile) return;
+    try {
+      const logEntry = {
+        time: new Date().toISOString(),
+        level: level.toLowerCase(),
+        subsystem: this.name,
+        ...(context?.sessionId && { sessionId: context.sessionId }),
+        ...(context?.agentId && { agentId: context.agentId }),
+        message,
+        ...(meta !== undefined && { meta }),
+      };
+      const line = JSON.stringify(logEntry);
+      fs.appendFileSync(this.logFile, `${line}\n`, { encoding: 'utf8' });
+    } catch {}
+  }
+
+  /**
    * Debug level log
    */
-  debug(message: string, meta?: unknown): void {
+  debug(message: string, context?: LogContext, meta?: unknown): void {
     if (this.minLevel <= LogLevel.DEBUG) {
+      this.writeToFile('DEBUG', message, context, meta);
       console.log(this.format('DEBUG', colors.gray, message, meta));
     }
   }
@@ -86,8 +144,9 @@ class Logger {
   /**
    * Info level log
    */
-  info(message: string, meta?: unknown): void {
+  info(message: string, context?: LogContext, meta?: unknown): void {
     if (this.minLevel <= LogLevel.INFO) {
+      this.writeToFile('INFO', message, context, meta);
       console.log(this.format('INFO', colors.blue, message, meta));
     }
   }
@@ -95,8 +154,9 @@ class Logger {
   /**
    * Warn level log
    */
-  warn(message: string, meta?: unknown): void {
+  warn(message: string, context?: LogContext, meta?: unknown): void {
     if (this.minLevel <= LogLevel.WARN) {
+      this.writeToFile('WARN', message, context, meta);
       console.warn(this.format('WARN', colors.yellow, message, meta));
     }
   }
@@ -104,8 +164,9 @@ class Logger {
   /**
    * Error level log
    */
-  error(message: string, meta?: unknown): void {
+  error(message: string, context?: LogContext, meta?: unknown): void {
     if (this.minLevel <= LogLevel.ERROR) {
+      this.writeToFile('ERROR', message, context, meta);
       console.error(this.format('ERROR', colors.red, message, meta));
     }
   }
@@ -113,8 +174,9 @@ class Logger {
   /**
    * Success log (special case of info with green color)
    */
-  success(message: string, meta?: unknown): void {
+  success(message: string, context?: LogContext, meta?: unknown): void {
     if (this.minLevel <= LogLevel.INFO) {
+      this.writeToFile('SUCCESS', message, context, meta);
       console.log(this.format('SUCCESS', colors.green, message, meta));
     }
   }
@@ -123,7 +185,7 @@ class Logger {
    * Create a child logger with a different name
    */
   child(name: string): Logger {
-    return new Logger(`${this.name}:${name}`, this.minLevel);
+    return new Logger(`${this.name}:${name}`, this.minLevel, this.logDir);
   }
 
   /**
@@ -137,8 +199,9 @@ class Logger {
 // Default logger instance
 export const logger = new Logger('YMBot');
 
-// Export Logger class and LogLevel for custom instances
+// Export Logger class, LogLevel, and LogContext for custom instances
 export { Logger, LogLevel };
+export type { LogContext };
 
 // Export a factory function
 export function getLogger(name: string): Logger {
