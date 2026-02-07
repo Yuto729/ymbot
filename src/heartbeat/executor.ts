@@ -13,6 +13,28 @@ import type { AgentState, HeartbeatResult } from './types';
 const logger = getLogger('Executor');
 
 /**
+ * Extract final response from agent output using ## Response marker
+ * Falls back to full output if marker not found
+ */
+function extractFinalResponse(output: string): string {
+  const marker = '## Response';
+  const markerIndex = output.indexOf(marker);
+
+  if (markerIndex === -1) {
+    // Marker not found - return full output as fallback
+    logger.debug('## Response marker not found, using full output');
+    return output.trim();
+  }
+
+  // Extract content after marker
+  const afterMarker = output.substring(markerIndex + marker.length).trim();
+  logger.debug(
+    `## Response marker found, extracted ${afterMarker.length} chars`
+  );
+  return afterMarker;
+}
+
+/**
  * Execute a single heartbeat for an agent
  */
 export async function executeHeartbeat(
@@ -162,8 +184,12 @@ export async function executeHeartbeat(
           agentId: agent.agentId,
         });
 
-        // Also check result for HEARTBEAT_OK
-        if (resultText.includes('HEARTBEAT_OK')) {
+        // Extract final response from result (removes thinking/process)
+        const finalResponse = extractFinalResponse(resultText);
+        output = finalResponse;
+
+        // Check result for HEARTBEAT_OK
+        if (finalResponse.includes('HEARTBEAT_OK')) {
           logger.success('✅ HEARTBEAT_OK in result', {
             sessionId: msg.session_id,
             agentId: agent.agentId,
@@ -199,10 +225,17 @@ export async function executeHeartbeat(
         sessionId,
         agentId: agent.agentId,
       });
-      logger.warn(`\n${'='.repeat(60)}\n${output}\n${'='.repeat(60)}`, {
-        sessionId,
-        agentId: agent.agentId,
-      });
+      logger.warn(
+        `\n${'='.repeat(60)}\n${output}\n${'='.repeat(60)}`,
+        {
+          sessionId,
+          agentId: agent.agentId,
+        },
+        {
+          source: 'agent',
+          messageType: 'agent_response',
+        }
+      );
     } else if (!shouldNotify) {
       logger.debug('No notification needed', {
         sessionId,

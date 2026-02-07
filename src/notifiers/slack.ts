@@ -56,8 +56,8 @@ export class SlackNotifier implements Notifier {
     const { text, metadata } = message;
 
     try {
-      // Format message with metadata
-      const formattedText = this.formatMessage(text, metadata);
+      // Format message (no metadata footer)
+      const formattedText = this.formatMessage(text);
 
       // Send to Slack
       const result = await this.app.client.chat.postMessage({
@@ -87,26 +87,11 @@ export class SlackNotifier implements Notifier {
   }
 
   /**
-   * Format message with optional metadata footer
+   * Format message (metadata footer removed per user request)
    */
-  private formatMessage(
-    text: string,
-    metadata?: NotificationMessage['metadata']
-  ): string {
-    let formatted = text;
-
-    // Add metadata footer if available
-    if (metadata?.agentId || metadata?.sessionId) {
-      const footer = [];
-      if (metadata.agentId) footer.push(`Agent: \`${metadata.agentId}\``);
-      if (metadata.sessionId) {
-        const shortSessionId = metadata.sessionId.slice(0, 8);
-        footer.push(`Session: \`${shortSessionId}...\``);
-      }
-      formatted += `\n\n_${footer.join(' • ')}_`;
-    }
-
-    return formatted;
+  private formatMessage(text: string): string {
+    // Simply return the text without metadata footer
+    return text;
   }
 
   async start(): Promise<void> {
