@@ -57,6 +57,20 @@ export async function executeHeartbeat(
         // Working directory (where .claude/skills/ is located)
         cwd: workspace,
 
+        // System prompt: Define agent behavior for heartbeat execution
+        systemPrompt: {
+          type: 'preset',
+          preset: 'claude_code',
+          append: `
+重要な動作指示:
+- すべての出力は日本語で行ってください
+- 作業過程（ツール実行、分析、判断）は自由に記述してかまいません
+- 最終的にユーザーに通知する内容は、必ず「## Response」というMarkdownヘッダーの下に記述してください
+- ## Responseセクションには、HEARTBEAT.mdで指定された出力形式のみを記述してください
+- メールの件名が英語の場合でも、説明文や「確認が必要です」などのメッセージは必ず日本語で記述してください
+          `.trim(),
+        },
+
         // Load Skills from filesystem
         settingSources: ['user', 'project'],
 
