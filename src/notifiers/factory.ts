@@ -3,7 +3,12 @@
  */
 
 import type { AppConfig } from '../config';
-import { getLogger } from '../utils';
+import {
+  AgentHookEvent,
+  getLogger,
+  type LogMetadata,
+  serializeError,
+} from '../utils';
 import { ConsoleNotifier } from './console';
 import { SlackNotifier } from './slack';
 import type { Notifier } from './types';
@@ -35,10 +40,14 @@ export function createNotifier(config: AppConfig): Notifier {
         channel: slackConfig.channel,
       });
     } catch (error) {
+      const metadata: LogMetadata = {
+        eventType: AgentHookEvent.NOTIFIER_LIFECYCLE,
+        error: serializeError(error),
+      };
       logger.error(
         'Failed to create Slack notifier, falling back to console',
         undefined,
-        error
+        metadata
       );
       return new ConsoleNotifier();
     }

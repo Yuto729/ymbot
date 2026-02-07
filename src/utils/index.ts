@@ -2,4 +2,13 @@
  * Utility modules
  */
 
-export { getLogger, Logger, LogLevel, logger } from './logger';
+export {
+  AgentHookEvent,
+  getLogger,
+  Logger,
+  LogLevel,
+  type LogMetadata,
+  logger,
+  type StructuredLogMetadata,
+  serializeError,
+} from './logger';

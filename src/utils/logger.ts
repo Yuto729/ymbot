@@ -17,6 +17,104 @@ type LogContext = {
   agentId?: string;
 };
 
+/**
+ * Agent hook event types (corresponds to Claude Agent SDK hook names)
+ * Use this enum to categorize log events by their hook trigger
+ *
+ * @example
+ * ```bash
+ * # Find all compaction events
+ * jq 'select(.meta.eventType == "PreCompact")' /tmp/ymbot/ymbot-*.json
+ *
+ * # Find all tool executions
+ * jq 'select(.meta.eventType == "PostToolUse")' /tmp/ymbot/ymbot-*.json
+ *
+ * # Count events by type
+ * jq '.meta.eventType' /tmp/ymbot/ymbot-*.json | sort | uniq -c
+ * ```
+ */
+export enum AgentHookEvent {
+  /** Before compaction (manual or auto) */
+  PRE_COMPACT = 'PreCompact',
+
+  /** Before tool execution */
+  PRE_TOOL_USE = 'PreToolUse',
+
+  /** After tool execution */
+  POST_TOOL_USE = 'PostToolUse',
+
+  /** Session started or resumed */
+  SESSION_START = 'SessionStart',
+
+  /** Session ended */
+  SESSION_END = 'SessionEnd',
+
+  /** Agent stopped */
+  STOP = 'Stop',
+
+  /** User submitted prompt */
+  USER_PROMPT_SUBMIT = 'UserPromptSubmit',
+
+  /** Agent response (custom event for final output) */
+  AGENT_RESPONSE = 'AgentResponse',
+
+  /** Agent message received from SDK */
+  MESSAGE_RECEIVED = 'MessageReceived',
+
+  /** Heartbeat execution error */
+  HEARTBEAT_ERROR = 'HeartbeatError',
+
+  /** Notification send error */
+  NOTIFICATION_ERROR = 'NotificationError',
+
+  /** Notifier lifecycle (start/stop) */
+  NOTIFIER_LIFECYCLE = 'NotifierLifecycle',
+
+  /** Notification sent successfully */
+  NOTIFICATION_SENT = 'NotificationSent',
+}
+
+/**
+ * Structured log metadata with required eventType field
+ * Use this type for important logs (hooks, errors, notifications) to ensure
+ * they include an event type for filtering
+ *
+ * For simple informational logs, you can use plain objects without eventType
+ */
+export interface StructuredLogMetadata {
+  /** Event type (required for structured logs) */
+  eventType: AgentHookEvent;
+  /** Additional metadata fields */
+  [key: string]: unknown;
+}
+
+/**
+ * @deprecated Use StructuredLogMetadata for typed logs
+ */
+export type LogMetadata = StructuredLogMetadata;
+
+/**
+ * Serialize error object for logging
+ * Converts Error objects to plain objects, stringifies non-objects
+ */
+export function serializeError(error: unknown): unknown {
+  if (error instanceof Error) {
+    const serialized: Record<string, unknown> = {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+    if (error.cause) {
+      serialized.cause = serializeError(error.cause);
+    }
+    return serialized;
+  }
+  if (typeof error === 'object' && error !== null) {
+    return error;
+  }
+  return String(error);
+}
+
 // ANSI color codes
 const colors = {
   reset: '\x1b[0m',
@@ -135,8 +233,13 @@ class Logger {
 
   /**
    * Debug level log
+   * @param meta - Optional metadata. Use StructuredLogMetadata for important logs with eventType
    */
-  debug(message: string, context?: LogContext, meta?: unknown): void {
+  debug(
+    message: string,
+    context?: LogContext,
+    meta?: Record<string, unknown>
+  ): void {
     if (this.minLevel <= LogLevel.DEBUG) {
       this.writeToFile('DEBUG', message, context, meta);
       console.log(this.format('DEBUG', colors.gray, message, meta));
@@ -145,8 +248,13 @@ class Logger {
 
   /**
    * Info level log
+   * @param meta - Optional metadata. Use StructuredLogMetadata for important logs with eventType
    */
-  info(message: string, context?: LogContext, meta?: unknown): void {
+  info(
+    message: string,
+    context?: LogContext,
+    meta?: Record<string, unknown>
+  ): void {
     if (this.minLevel <= LogLevel.INFO) {
       this.writeToFile('INFO', message, context, meta);
       console.log(this.format('INFO', colors.blue, message, meta));
@@ -155,8 +263,13 @@ class Logger {
 
   /**
    * Warn level log
+   * @param meta - Optional metadata. Use StructuredLogMetadata for important logs with eventType
    */
-  warn(message: string, context?: LogContext, meta?: unknown): void {
+  warn(
+    message: string,
+    context?: LogContext,
+    meta?: Record<string, unknown>
+  ): void {
     if (this.minLevel <= LogLevel.WARN) {
       this.writeToFile('WARN', message, context, meta);
       console.warn(this.format('WARN', colors.yellow, message, meta));
@@ -165,8 +278,13 @@ class Logger {
 
   /**
    * Error level log
+   * @param meta - Optional metadata. Use StructuredLogMetadata for important logs with eventType
    */
-  error(message: string, context?: LogContext, meta?: unknown): void {
+  error(
+    message: string,
+    context?: LogContext,
+    meta?: Record<string, unknown>
+  ): void {
     if (this.minLevel <= LogLevel.ERROR) {
       this.writeToFile('ERROR', message, context, meta);
       console.error(this.format('ERROR', colors.red, message, meta));
@@ -175,8 +293,13 @@ class Logger {
 
   /**
    * Success log (special case of info with green color)
+   * @param meta - Optional metadata. Use StructuredLogMetadata for important logs with eventType
    */
-  success(message: string, context?: LogContext, meta?: unknown): void {
+  success(
+    message: string,
+    context?: LogContext,
+    meta?: Record<string, unknown>
+  ): void {
     if (this.minLevel <= LogLevel.INFO) {
       this.writeToFile('SUCCESS', message, context, meta);
       console.log(this.format('SUCCESS', colors.green, message, meta));

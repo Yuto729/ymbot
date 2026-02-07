@@ -18,3 +18,6 @@ export interface HeartbeatResult {
   output: string;
   error?: Error;
 }
+
+// Re-export log types from utils for convenience
+export { AgentHookEvent, type LogMetadata } from '../utils/logger';

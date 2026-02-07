@@ -8,7 +8,12 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { getLogger } from '../utils';
-import type { AgentState, HeartbeatResult } from './types';
+import {
+  AgentHookEvent,
+  type AgentState,
+  type HeartbeatResult,
+  type LogMetadata,
+} from './types';
 
 const logger = getLogger('Executor');
 
@@ -89,8 +94,41 @@ export async function executeHeartbeat(
         // Permission mode
         permissionMode: 'acceptEdits',
 
-        // Hooks (logging)
+        // Hooks (logging + compaction observation)
         hooks: {
+          PreCompact: [
+            {
+              hooks: [
+                async (input: any, _toolUseID: string | undefined) => {
+                  // Type guard for PreCompact
+                  if (input.hook_event_name !== 'PreCompact') {
+                    return {};
+                  }
+
+                  // Log compaction event with all available information
+                  const trigger = input.trigger || 'unknown'; // 'manual' | 'auto'
+                  const metadata: LogMetadata = {
+                    eventType: AgentHookEvent.PRE_COMPACT,
+                    trigger,
+                    timestamp: new Date().toISOString(),
+                    // Include any other available fields for observation
+                    ...(input.pre_tokens && { preTokens: input.pre_tokens }),
+                    ...(input.compact_metadata && {
+                      compactMetadata: input.compact_metadata,
+                    }),
+                  };
+
+                  logger.warn(
+                    `🔄 Compaction triggered (${trigger})`,
+                    { sessionId: input.session_id, agentId: agent.agentId },
+                    metadata
+                  );
+
+                  return {};
+                },
+              ],
+            },
+          ],
           PostToolUse: [
             {
               hooks: [
@@ -112,24 +150,38 @@ export async function executeHeartbeat(
                     // Bash tool: include command in metadata
                     const command = (input.tool_input as { command: string })
                       .command;
+                    const metadata: LogMetadata = {
+                      eventType: AgentHookEvent.POST_TOOL_USE,
+                      toolName,
+                      command,
+                    };
                     logger.debug(
                       `Tool used: ${toolName}`,
                       { sessionId: input.session_id, agentId: agent.agentId },
-                      { toolName, command }
+                      metadata
                     );
                   } else if (input.tool_input) {
                     // Other tools: include full input
+                    const metadata: LogMetadata = {
+                      eventType: AgentHookEvent.POST_TOOL_USE,
+                      toolName,
+                      toolInput: input.tool_input,
+                    };
                     logger.debug(
                       `Tool used: ${toolName}`,
                       { sessionId: input.session_id, agentId: agent.agentId },
-                      { toolName, toolInput: input.tool_input }
+                      metadata
                     );
                   } else {
                     // No tool input
+                    const metadata: LogMetadata = {
+                      eventType: AgentHookEvent.POST_TOOL_USE,
+                      toolName,
+                    };
                     logger.debug(
                       `Tool used: ${toolName}`,
                       { sessionId: input.session_id, agentId: agent.agentId },
-                      { toolName }
+                      metadata
                     );
                   }
 
@@ -145,13 +197,15 @@ export async function executeHeartbeat(
       const msg = message as any;
 
       // DEBUG: Log all message types and structure
+      const debugMetadata: LogMetadata = {
+        eventType: AgentHookEvent.MESSAGE_RECEIVED,
+        messageType: msg.type,
+        keys: Object.keys(msg),
+      };
       logger.debug(
         `Message type="${msg.type}" hasMessage=${!!msg.message}`,
         { sessionId: msg.session_id, agentId: agent.agentId },
-        {
-          messageType: msg.type,
-          keys: Object.keys(msg),
-        }
+        debugMetadata
       );
 
       // Handle assistant messages (SDK uses 'message' property, not 'content')
@@ -239,16 +293,16 @@ export async function executeHeartbeat(
         sessionId,
         agentId: agent.agentId,
       });
+      const metadata: LogMetadata = {
+        eventType: AgentHookEvent.AGENT_RESPONSE,
+      };
       logger.warn(
         `\n${'='.repeat(60)}\n${output}\n${'='.repeat(60)}`,
         {
           sessionId,
           agentId: agent.agentId,
         },
-        {
-          source: 'agent',
-          messageType: 'agent_response',
-        }
+        metadata
       );
     } else if (!shouldNotify) {
       logger.debug('No notification needed', {

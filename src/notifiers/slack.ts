@@ -3,7 +3,12 @@
  */
 
 import { App, LogLevel } from '@slack/bolt';
-import { getLogger } from '../utils';
+import {
+  AgentHookEvent,
+  getLogger,
+  type LogMetadata,
+  serializeError,
+} from '../utils';
 import type { NotificationMessage, Notifier } from './types';
 
 const logger = getLogger('SlackNotifier');
@@ -67,20 +72,28 @@ export class SlackNotifier implements Notifier {
         mrkdwn: true,
       });
 
+      const successMetadata: LogMetadata = {
+        eventType: AgentHookEvent.NOTIFICATION_SENT,
+        ts: result.ts,
+      };
       logger.info(
         `Message sent to Slack channel ${this.channel}`,
         metadata
           ? { sessionId: metadata.sessionId, agentId: metadata.agentId }
           : undefined,
-        { ts: result.ts }
+        successMetadata
       );
     } catch (error) {
+      const errorMetadata: LogMetadata = {
+        eventType: AgentHookEvent.NOTIFICATION_ERROR,
+        error: serializeError(error),
+      };
       logger.error(
         'Failed to send Slack message',
         metadata
           ? { sessionId: metadata.sessionId, agentId: metadata.agentId }
           : undefined,
-        error
+        errorMetadata
       );
       throw error;
     }
@@ -103,7 +116,11 @@ export class SlackNotifier implements Notifier {
       logger.success(`Slack Bolt app connected via Socket Mode`);
       logger.info(`Notifications will be sent to channel: ${this.channel}`);
     } catch (error) {
-      logger.error('Failed to start Slack Bolt app', undefined, error);
+      const metadata: LogMetadata = {
+        eventType: AgentHookEvent.NOTIFIER_LIFECYCLE,
+        error: serializeError(error),
+      };
+      logger.error('Failed to start Slack Bolt app', undefined, metadata);
       throw error;
     }
   }
@@ -114,7 +131,11 @@ export class SlackNotifier implements Notifier {
       await this.app.stop();
       logger.info('Slack Bolt app stopped');
     } catch (error) {
-      logger.error('Failed to stop Slack Bolt app', undefined, error);
+      const metadata: LogMetadata = {
+        eventType: AgentHookEvent.NOTIFIER_LIFECYCLE,
+        error: serializeError(error),
+      };
+      logger.error('Failed to stop Slack Bolt app', undefined, metadata);
       throw error;
     }
   }

@@ -6,7 +6,12 @@
 
 import type { AgentConfig } from '../config';
 import type { Notifier } from '../notifiers';
-import { getLogger } from '../utils';
+import {
+  AgentHookEvent,
+  getLogger,
+  type LogMetadata,
+  serializeError,
+} from '../utils';
 import { executeHeartbeat } from './executor';
 import type { AgentState } from './types';
 
@@ -143,29 +148,41 @@ export class HeartbeatScheduler {
                 },
               });
               logger.debug('Notification sent successfully');
-            } catch {
+            } catch (notifError) {
+              const metadata: LogMetadata = {
+                eventType: AgentHookEvent.NOTIFICATION_ERROR,
+                error: serializeError(notifError),
+              };
               logger.error(
                 'Failed to send notification',
                 { sessionId: agent.sessionId, agentId: agent.agentId },
-                error
+                metadata
               );
             }
           }
         } else {
+          const metadata: LogMetadata = {
+            eventType: AgentHookEvent.HEARTBEAT_ERROR,
+            error: serializeError(error),
+          };
           logger.error(
             `${agent.agentId}: Heartbeat failed`,
             { sessionId: agent.sessionId, agentId: agent.agentId },
-            error
+            metadata
           );
         }
 
         // Schedule next execution (use current time, not loop start time)
         agent.nextDueMs = Date.now() + agent.intervalMs;
       } catch (error) {
+        const metadata: LogMetadata = {
+          eventType: AgentHookEvent.HEARTBEAT_ERROR,
+          error: serializeError(error),
+        };
         logger.error(
           `${agent.agentId}: Unexpected error`,
           { agentId: agent.agentId },
-          error
+          metadata
         );
         // Still schedule next execution even on error
         agent.nextDueMs = Date.now() + agent.intervalMs;
