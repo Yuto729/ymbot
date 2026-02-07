@@ -128,7 +128,9 @@ class Logger {
       };
       const line = JSON.stringify(logEntry);
       fs.appendFileSync(this.logFile, `${line}\n`, { encoding: 'utf8' });
-    } catch {}
+    } catch {
+      // Silently ignore file write errors - logging should not crash the app
+    }
   }
 
   /**
