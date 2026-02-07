@@ -4,32 +4,36 @@
  * Entry point for the agent server
  */
 
+import 'dotenv/config';
+
 import { defaultConfig } from './config';
 import { HeartbeatScheduler } from './heartbeat';
+import { createNotifier } from './notifiers';
 import { logger } from './utils';
 
 async function main() {
   logger.info('YMBot starting...');
 
   // Initialize heartbeat scheduler
-  const scheduler = new HeartbeatScheduler(defaultConfig.agents);
+  const notifier = createNotifier(defaultConfig);
+  const scheduler = new HeartbeatScheduler(defaultConfig.agents, notifier);
 
   // Start the scheduler
-  scheduler.start();
+  await scheduler.start();
 
   logger.success('YMBot is ready');
   logger.info('Press Ctrl+C to stop');
 
   // Graceful shutdown
-  process.on('SIGINT', () => {
+  process.on('SIGINT', async () => {
     logger.info('Shutting down...');
-    scheduler.stop();
+    await scheduler.stop();
     process.exit(0);
   });
 
-  process.on('SIGTERM', () => {
+  process.on('SIGTERM', async () => {
     logger.info('Received SIGTERM, shutting down...');
-    scheduler.stop();
+    await scheduler.stop();
     process.exit(0);
   });
 }

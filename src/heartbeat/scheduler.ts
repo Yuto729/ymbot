@@ -5,6 +5,7 @@
  */
 
 import type { AgentConfig } from '../config';
+import type { Notifier } from '../notifiers';
 import { getLogger } from '../utils';
 import { executeHeartbeat } from './executor';
 import type { AgentState } from './types';
@@ -15,9 +16,11 @@ export class HeartbeatScheduler {
   private agents = new Map<string, AgentState>();
   private timer?: NodeJS.Timeout;
   private running = false;
+  private notifier: Notifier;
 
-  constructor(configs: AgentConfig[]) {
+  constructor(configs: AgentConfig[], notifier: Notifier) {
     const now = Date.now();
+    this.notifier = notifier;
     for (const config of configs) {
       this.agents.set(config.agentId, {
         agentId: config.agentId,
@@ -31,13 +34,14 @@ export class HeartbeatScheduler {
   /**
    * Start the scheduler
    */
-  start(): void {
+  async start(): Promise<void> {
     if (this.running) {
       logger.warn('Scheduler already running');
       return;
     }
 
     this.running = true;
+    await this.notifier.start();
     logger.info('Starting heartbeat scheduler');
     this.scheduleNext();
   }
@@ -45,7 +49,7 @@ export class HeartbeatScheduler {
   /**
    * Stop the scheduler
    */
-  stop(): void {
+  async stop(): Promise<void> {
     if (!this.running) {
       return;
     }
@@ -54,6 +58,9 @@ export class HeartbeatScheduler {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = undefined;
+    }
+    if (this.notifier) {
+      await this.notifier.stop();
     }
     logger.info('Stopped heartbeat scheduler');
   }
@@ -119,16 +126,36 @@ export class HeartbeatScheduler {
 
       try {
         logger.info(`${agent.agentId}: Executing heartbeat`);
-        const result = await executeHeartbeat(agent);
+        const { success, shouldNotify, output, error } =
+          await executeHeartbeat(agent);
 
         // Update session ID if returned
-        if (result.success) {
+        if (success) {
           logger.success(`${agent.agentId}: Heartbeat completed`);
+          if (shouldNotify && output) {
+            try {
+              await this.notifier.send({
+                text: output,
+                metadata: {
+                  sessionId: agent.sessionId,
+                  agentId: agent.agentId,
+                  timestamp: new Date(),
+                },
+              });
+              logger.debug('Notification sent successfully');
+            } catch {
+              logger.error(
+                'Failed to send notification',
+                { sessionId: agent.sessionId, agentId: agent.agentId },
+                error
+              );
+            }
+          }
         } else {
           logger.error(
             `${agent.agentId}: Heartbeat failed`,
-            { agentId: agent.agentId },
-            result.error
+            { sessionId: agent.sessionId, agentId: agent.agentId },
+            error
           );
         }
 

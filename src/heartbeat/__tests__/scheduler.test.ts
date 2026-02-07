@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentConfig } from '../../config';
+import type { Notifier } from '../../notifiers';
 import { executeHeartbeat } from '../executor';
 import { HeartbeatScheduler } from '../scheduler';
 
@@ -19,6 +20,13 @@ vi.mock('../executor', () => ({
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: vi.fn(),
 }));
+
+// Create mock notifier
+const createMockNotifier = (): Notifier => ({
+  send: vi.fn().mockResolvedValue(undefined),
+  start: vi.fn().mockResolvedValue(undefined),
+  stop: vi.fn().mockResolvedValue(undefined),
+});
 
 describe('HeartbeatScheduler', () => {
   beforeEach(() => {
@@ -41,7 +49,8 @@ describe('HeartbeatScheduler', () => {
         heartbeatInterval: 5000, // 5秒
       };
 
-      const scheduler = new HeartbeatScheduler([config]);
+      const mockNotifier = createMockNotifier();
+      const scheduler = new HeartbeatScheduler([config], mockNotifier);
       scheduler.start();
 
       // スケジューラーが起動していることを確認
@@ -59,7 +68,8 @@ describe('HeartbeatScheduler', () => {
         heartbeatInterval: 5000,
       };
 
-      const scheduler = new HeartbeatScheduler([config]);
+      const mockNotifier = createMockNotifier();
+      const scheduler = new HeartbeatScheduler([config], mockNotifier);
       scheduler.start();
       scheduler.stop();
 
@@ -101,7 +111,8 @@ describe('HeartbeatScheduler', () => {
         };
       });
 
-      const scheduler = new HeartbeatScheduler(configs);
+      const mockNotifier = createMockNotifier();
+      const scheduler = new HeartbeatScheduler(configs, mockNotifier);
       scheduler.start();
 
       // 初期状態：すべてのエージェントが次回実行待ち
@@ -157,7 +168,8 @@ describe('HeartbeatScheduler', () => {
         };
       });
 
-      const scheduler = new HeartbeatScheduler(configs);
+      const mockNotifier = createMockNotifier();
+      const scheduler = new HeartbeatScheduler(configs, mockNotifier);
       scheduler.start();
 
       // 2秒後：fast-agent が最初に実行される
@@ -208,7 +220,8 @@ describe('HeartbeatScheduler', () => {
         output: 'HEARTBEAT_OK',
       });
 
-      const scheduler = new HeartbeatScheduler(configs);
+      const mockNotifier = createMockNotifier();
+      const scheduler = new HeartbeatScheduler(configs, mockNotifier);
       scheduler.start();
 
       // 2秒後
@@ -239,7 +252,8 @@ describe('HeartbeatScheduler', () => {
         output: 'HEARTBEAT_OK',
       });
 
-      const scheduler = new HeartbeatScheduler([config]);
+      const mockNotifier = createMockNotifier();
+      const scheduler = new HeartbeatScheduler([config], mockNotifier);
       scheduler.start();
 
       // 2秒後
@@ -261,7 +275,8 @@ describe('HeartbeatScheduler', () => {
 
       mockExecuteHeartbeat.mockRejectedValueOnce(new Error('Test error'));
 
-      const scheduler = new HeartbeatScheduler([config]);
+      const mockNotifier = createMockNotifier();
+      const scheduler = new HeartbeatScheduler([config], mockNotifier);
       scheduler.start();
 
       // 2秒後：エラーが発生
