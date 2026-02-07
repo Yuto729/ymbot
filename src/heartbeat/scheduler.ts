@@ -4,10 +4,10 @@
  * Manages periodic execution of heartbeat checks using setTimeout
  */
 
-import { getLogger } from '../utils';
 import type { AgentConfig } from '../config';
-import type { AgentState } from './types';
+import { getLogger } from '../utils';
 import { executeHeartbeat } from './executor';
+import type { AgentState } from './types';
 
 const logger = getLogger('Scheduler');
 
@@ -85,7 +85,9 @@ export class HeartbeatScheduler {
 
     const delay = Math.max(0, nextDueMs - Date.now());
 
-    logger.debug(`Next heartbeat: ${nextAgentId} in ${Math.round(delay / 1000)}s`);
+    logger.debug(
+      `Next heartbeat: ${nextAgentId} in ${Math.round(delay / 1000)}s`
+    );
 
     this.timer = setTimeout(async () => {
       await this.executeDueHeartbeats();

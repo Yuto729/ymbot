@@ -4,7 +4,7 @@
  * Run with: npm run dev -- src/examples/logger-demo.ts
  */
 
-import { logger, getLogger } from '../utils';
+import { getLogger, logger } from '../utils';
 
 async function demonstrateLogger() {
   // Basic logging

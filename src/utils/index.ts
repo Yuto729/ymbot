@@ -2,4 +2,4 @@
  * Utility modules
  */
 
-export { logger, getLogger, Logger, LogLevel } from './logger';
+export { getLogger, Logger, LogLevel, logger } from './logger';

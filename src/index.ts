@@ -4,9 +4,9 @@
  * Entry point for the agent server
  */
 
-import { logger } from './utils';
-import { HeartbeatScheduler } from './heartbeat';
 import { defaultConfig } from './config';
+import { HeartbeatScheduler } from './heartbeat';
+import { logger } from './utils';
 
 async function main() {
   logger.info('YMBot starting...');

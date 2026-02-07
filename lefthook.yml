@@ -1,0 +1,31 @@
+# Lefthook configuration
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  commands:
+    # Format and lint staged files
+    format:
+      glob: "*.{ts,js,json}"
+      run: npx biome check --write --files-ignore-unknown=true --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+
+    # Type check
+    typecheck:
+      glob: "*.ts"
+      run: npm run typecheck
+
+pre-push:
+  parallel: true
+  commands:
+    # Run tests
+    test:
+      run: npm test
+
+    # Lint all files
+    lint:
+      run: npm run lint
+
+    # Type check
+    typecheck:
+      run: npm run typecheck

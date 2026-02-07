@@ -4,7 +4,7 @@
 
 export interface ActiveHours {
   start: string; // "HH:MM" format
-  end: string;   // "HH:MM" format
+  end: string; // "HH:MM" format
 }
 
 export interface AgentConfig {

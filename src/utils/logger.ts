@@ -58,15 +58,16 @@ class Logger {
     meta?: unknown
   ): string {
     const timestamp = colors.gray + this.getTimestamp() + colors.reset;
-    const nameStr = colors.cyan + `[${this.name}]` + colors.reset;
-    const levelStr = levelColor + `[${level}]` + colors.reset;
+    const nameStr = `${colors.cyan}[${this.name}]${colors.reset}`;
+    const levelStr = `${levelColor}[${level}]${colors.reset}`;
 
     let output = `${timestamp} ${nameStr} ${levelStr} ${message}`;
 
     if (meta !== undefined) {
-      const metaStr = typeof meta === 'object'
-        ? '\n' + JSON.stringify(meta, null, 2)
-        : String(meta);
+      const metaStr =
+        typeof meta === 'object'
+          ? `\n${JSON.stringify(meta, null, 2)}`
+          : String(meta);
       output += colors.gray + metaStr + colors.reset;
     }
 

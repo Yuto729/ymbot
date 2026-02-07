@@ -2,10 +2,10 @@
  * Heartbeat Scheduler Tests
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { HeartbeatScheduler } from '../scheduler';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentConfig } from '../../config';
 import { executeHeartbeat } from '../executor';
+import { HeartbeatScheduler } from '../scheduler';
 
 // Get mocked function type
 const mockExecuteHeartbeat = vi.mocked(executeHeartbeat);

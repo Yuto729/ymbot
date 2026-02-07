@@ -4,9 +4,9 @@
  * Executes a single heartbeat check using Claude Agent SDK
  */
 
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { getLogger } from '../utils';
 import type { AgentState, HeartbeatResult } from './types';
 
@@ -58,10 +58,11 @@ export async function executeHeartbeat(
           PostToolUse: [
             {
               hooks: [
-                (event) => {
+                async (event: any) => {
                   logger.debug(
-                    `${agent.agentId}: Tool used - ${event.tool.name}`
+                    `${agent.agentId}: Tool used - ${event.tool?.name || 'unknown'}`
                   );
+                  return {};
                 },
               ],
             },
@@ -70,19 +71,28 @@ export async function executeHeartbeat(
       },
     })) {
       // Process messages
-      if (message.type === 'text') {
-        output += message.text;
+      const msg = message as any;
 
-        // Check for HEARTBEAT_OK protocol
-        if (message.text.includes('HEARTBEAT_OK')) {
-          logger.debug(`${agent.agentId}: HEARTBEAT_OK received`);
-          shouldNotify = false;
-        } else {
-          shouldNotify = true;
+      if (msg.type === 'assistant' && msg.content) {
+        // Extract text from assistant message
+        for (const block of msg.content) {
+          if (block.type === 'text') {
+            output += block.text;
+
+            // Check for HEARTBEAT_OK protocol
+            if (block.text.includes('HEARTBEAT_OK')) {
+              logger.debug(`${agent.agentId}: HEARTBEAT_OK received`);
+              shouldNotify = false;
+            } else {
+              shouldNotify = true;
+            }
+          }
         }
-      } else if (message.type === 'session_id') {
-        // Save session ID for next heartbeat
-        sessionId = message.sessionId;
+      }
+
+      // Store session ID if available
+      if (msg.session_id) {
+        sessionId = msg.session_id;
         logger.debug(`${agent.agentId}: Session ID updated`);
       }
     }
