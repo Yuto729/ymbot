@@ -22,13 +22,13 @@ export interface AppConfig {
 export const defaultConfig: AppConfig = {
   agents: [
     {
-      agentId: 'default',
+      agentId: 'gmail-checker',
       workspace: process.cwd(),
-      heartbeatInterval: 30 * 60 * 1000, // 30 minutes
-      activeHours: {
-        start: '08:00',
-        end: '22:00',
-      },
+      heartbeatInterval: 30 * 1000, // 30 seconds (for testing)
+      // activeHours: {
+      //   start: '08:00',
+      //   end: '22:00',
+      // },
     },
   ],
 };
