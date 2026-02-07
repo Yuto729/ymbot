@@ -94,8 +94,8 @@ export class HeartbeatScheduler {
       this.scheduleNext(); // Reschedule after execution
     }, delay);
 
-    // Allow process to exit if only this timer is pending
-    this.timer.unref?.();
+    // Keep process alive while timer is active
+    // this.timer.unref?.();  // Commented out to keep process running
   }
 
   /**
@@ -113,7 +113,7 @@ export class HeartbeatScheduler {
       // Check active hours
       if (!this.isWithinActiveHours(agent.config)) {
         logger.debug(`${agent.agentId}: Outside active hours, skipping`);
-        agent.nextDueMs = now + agent.intervalMs;
+        agent.nextDueMs = Date.now() + agent.intervalMs;
         continue;
       }
 
@@ -125,15 +125,23 @@ export class HeartbeatScheduler {
         if (result.success) {
           logger.success(`${agent.agentId}: Heartbeat completed`);
         } else {
-          logger.error(`${agent.agentId}: Heartbeat failed`, result.error);
+          logger.error(
+            `${agent.agentId}: Heartbeat failed`,
+            { agentId: agent.agentId },
+            result.error
+          );
         }
 
-        // Schedule next execution
-        agent.nextDueMs = now + agent.intervalMs;
+        // Schedule next execution (use current time, not loop start time)
+        agent.nextDueMs = Date.now() + agent.intervalMs;
       } catch (error) {
-        logger.error(`${agent.agentId}: Unexpected error`, error);
+        logger.error(
+          `${agent.agentId}: Unexpected error`,
+          { agentId: agent.agentId },
+          error
+        );
         // Still schedule next execution even on error
-        agent.nextDueMs = now + agent.intervalMs;
+        agent.nextDueMs = Date.now() + agent.intervalMs;
       }
     }
   }

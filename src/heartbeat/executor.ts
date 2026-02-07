@@ -58,10 +58,45 @@ export async function executeHeartbeat(
           PostToolUse: [
             {
               hooks: [
-                async (event: any) => {
-                  logger.debug(
-                    `${agent.agentId}: Tool used - ${event.tool?.name || 'unknown'}`
-                  );
+                async (input: any, _toolUseID: string | undefined) => {
+                  // Type guard for PostToolUse
+                  if (input.hook_event_name !== 'PostToolUse') {
+                    return {};
+                  }
+
+                  const toolName = input.tool_name || 'unknown';
+
+                  // Log tool usage with structured metadata
+                  if (
+                    toolName === 'Bash' &&
+                    input.tool_input &&
+                    typeof input.tool_input === 'object' &&
+                    'command' in input.tool_input
+                  ) {
+                    // Bash tool: include command in metadata
+                    const command = (input.tool_input as { command: string })
+                      .command;
+                    logger.debug(
+                      `Tool used: ${toolName}`,
+                      { sessionId: input.session_id, agentId: agent.agentId },
+                      { toolName, command }
+                    );
+                  } else if (input.tool_input) {
+                    // Other tools: include full input
+                    logger.debug(
+                      `Tool used: ${toolName}`,
+                      { sessionId: input.session_id, agentId: agent.agentId },
+                      { toolName, toolInput: input.tool_input }
+                    );
+                  } else {
+                    // No tool input
+                    logger.debug(
+                      `Tool used: ${toolName}`,
+                      { sessionId: input.session_id, agentId: agent.agentId },
+                      { toolName }
+                    );
+                  }
+
                   return {};
                 },
               ],
@@ -73,38 +108,106 @@ export async function executeHeartbeat(
       // Process messages
       const msg = message as any;
 
-      if (msg.type === 'assistant' && msg.content) {
-        // Extract text from assistant message
-        for (const block of msg.content) {
-          if (block.type === 'text') {
-            output += block.text;
+      // DEBUG: Log all message types and structure
+      logger.debug(
+        `Message type="${msg.type}" hasMessage=${!!msg.message}`,
+        { sessionId: msg.session_id, agentId: agent.agentId },
+        {
+          messageType: msg.type,
+          keys: Object.keys(msg),
+        }
+      );
 
-            // Check for HEARTBEAT_OK protocol
-            if (block.text.includes('HEARTBEAT_OK')) {
-              logger.debug(`${agent.agentId}: HEARTBEAT_OK received`);
-              shouldNotify = false;
-            } else {
-              shouldNotify = true;
+      // Handle assistant messages (SDK uses 'message' property, not 'content')
+      if (msg.type === 'assistant' && msg.message) {
+        const message = msg.message;
+
+        // Extract text from message content
+        if (message.content && Array.isArray(message.content)) {
+          for (const block of message.content) {
+            if (block.type === 'text') {
+              const text = block.text;
+              output += text;
+
+              // Log assistant response
+              logger.info(`💬 ${text}`, {
+                sessionId: msg.session_id,
+                agentId: agent.agentId,
+              });
+
+              // Check for HEARTBEAT_OK protocol
+              if (text.includes('HEARTBEAT_OK')) {
+                logger.success('✅ HEARTBEAT_OK received', {
+                  sessionId: msg.session_id,
+                  agentId: agent.agentId,
+                });
+                shouldNotify = false;
+              } else {
+                shouldNotify = true;
+              }
+            } else if (block.type === 'tool_use') {
+              // Log tool use
+              logger.debug(`🔧 Tool: ${block.name || 'unknown'}`, {
+                sessionId: msg.session_id,
+                agentId: agent.agentId,
+              });
             }
           }
         }
+      } else if (msg.type === 'result') {
+        // Log and check result message
+        const resultText = msg.result || '';
+        logger.debug(`📊 Result: ${resultText.substring(0, 100)}...`, {
+          sessionId: msg.session_id,
+          agentId: agent.agentId,
+        });
+
+        // Also check result for HEARTBEAT_OK
+        if (resultText.includes('HEARTBEAT_OK')) {
+          logger.success('✅ HEARTBEAT_OK in result', {
+            sessionId: msg.session_id,
+            agentId: agent.agentId,
+          });
+          shouldNotify = false;
+        }
       }
 
-      // Store session ID if available
-      if (msg.session_id) {
+      // Store session ID if available (only log when changed)
+      if (msg.session_id && msg.session_id !== sessionId) {
+        const isFirst = !sessionId;
         sessionId = msg.session_id;
-        logger.debug(`${agent.agentId}: Session ID updated`);
+        if (isFirst) {
+          logger.debug('🔑 Session started', {
+            sessionId: msg.session_id,
+            agentId: agent.agentId,
+          });
+        } else {
+          logger.debug('🔑 Session ID changed', {
+            sessionId: msg.session_id,
+            agentId: agent.agentId,
+          });
+        }
       }
     }
 
     // Update agent's session ID
     agent.sessionId = sessionId;
 
-    // TODO(human): Implement notification logic here
-    // This is where you decide how to notify the user (console, webhook, etc.)
+    // Notification logic
     if (shouldNotify && output) {
-      logger.info(`${agent.agentId}: Notification needed`);
-      logger.info(output);
+      logger.warn('📧 Notification needed', {
+        sessionId,
+        agentId: agent.agentId,
+      });
+      logger.warn(`\n${'='.repeat(60)}\n${output}\n${'='.repeat(60)}`, {
+        sessionId,
+        agentId: agent.agentId,
+      });
+    } else if (!shouldNotify) {
+      logger.debug('No notification needed', {
+        sessionId,
+        agentId: agent.agentId,
+      });
     }
 
     return {

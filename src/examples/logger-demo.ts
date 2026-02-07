@@ -15,7 +15,7 @@ async function demonstrateLogger() {
   logger.success('This is a success message');
 
   // Logging with metadata
-  logger.info('User logged in', {
+  logger.info('User logged in', undefined, {
     userId: '123',
     username: 'john_doe',
     timestamp: new Date().toISOString(),
@@ -34,7 +34,7 @@ async function demonstrateLogger() {
   try {
     throw new Error('Something went wrong!');
   } catch (error) {
-    logger.error('Failed to process request', error);
+    logger.error('Failed to process request', undefined, error);
   }
 
   // Simulating async operations
@@ -44,6 +44,6 @@ async function demonstrateLogger() {
 }
 
 demonstrateLogger().catch((error) => {
-  logger.error('Demo failed', error);
+  logger.error('Demo failed', undefined, error);
   process.exit(1);
 });
